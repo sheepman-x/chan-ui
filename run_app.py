@@ -156,8 +156,14 @@ def main():
         else:
             # 显示演示图表
             st.info("🎯 欢迎使用缠论图表可视化工具！")
-            demo_fig = chart_renderer.create_simple_mock_chart()
-            st.plotly_chart(demo_fig, use_container_width=True, height=600)
+            st.info("👈 请在左侧配置参数后，点击'生成图表'按钮")
+            st.markdown("### 简化说明")
+            st.markdown(""")
+            📈 **核心功能**：
+            - 直接调用chan.py缠论算法
+            - 显示：K线、笔、中枢、线段、买卖点
+            - 无成交量、无动画、专注指标
+            """)
     
     with tab2:
         st.markdown("""
