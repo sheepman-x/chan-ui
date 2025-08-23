@@ -14,14 +14,12 @@ class StreamlitConfig:
     
     def from_streamlit(self, st_inputs: Dict[str, Any]) -> Dict:
         """从Streamlit输入转换为chan.py配置"""
+        # 只传递chan.py实际支持的参数
         return {
             **self.base_config,
             "bi_strict": st_inputs.get('bi_strict', True),
-            "zs_combine": st_inputs.get('zs_combine', True),
-            "show_bsp": st_inputs.get('show_bsp', True),
-            "show_bi": st_inputs.get('show_bi', True),
-            "show_seg": st_inputs.get('show_seg', True),
-            "show_zs": st_inputs.get('show_zs', True)
+            "zs_combine": st_inputs.get('zs_combine', True)
+            # show_* 参数用于前端显示控制，不传给chan.py
         }
     
     def get_available_levels(self):

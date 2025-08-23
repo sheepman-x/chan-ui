@@ -2,15 +2,28 @@ import streamlit as st
 from datetime import datetime
 from typing import Dict
 import sys
+import os
 
-# 导入chan.py相关类
+# 兼容处理: 先检查Python版本，再尝试导入chan.py
 try:
-    sys.path.append('../chan.py')
-    from Chan import CChan
-    from ChanConfig import CChanConfig
-    CHAN_AVAILABLE = True
-except ImportError as e:
+    import sys
+    import subprocess
+    
+    # 检查Python版本
+    if sys.version_info < (3, 11):
+        CHAN_AVAILABLE = False
+        CHAN_IMPORT_ERROR = f"Python版本过低，需要3.11+，当前为{sys.version_info.major}.{sys.version_info.minor}"
+    else:
+        chan_path = os.path.join(os.path.dirname(__file__), '..', 'chan.py')
+        sys.path.append(chan_path)
+        from Chan import CChan
+        from ChanConfig import CChanConfig
+        CHAN_AVAILABLE = True
+        CHAN_IMPORT_ERROR = None
+        
+except Exception as e:
     CHAN_AVAILABLE = False
+    CHAN_IMPORT_ERROR = str(e)
 
 # 定义核心数据函数，修复缓存问题
 @st.cache_data(ttl=3600)
@@ -21,34 +34,43 @@ def load_chan_data(code: str, level: str, config: Dict, start_date: str = None, 
     if not code or not level:
         raise ValueError("参数缺失")
     
+    # 转换股票代码格式：UI的.SZ/.SH格式 -> BaoStock的sz./sh.格式
+    if code.endswith('.SZ'):
+        baostock_code = f"sz.{code[:-3]}"
+    elif code.endswith('.SH'):
+        baostock_code = f"sh.{code[:-3]}"
+    else:
+        # 如果已经是BaoStock格式，直接使用
+        baostock_code = code
+    
     # 设置默认日期范围
     if not start_date:
         start_date = "2023-01-01"
     if not end_date:
         end_date = datetime.now().strftime("%Y-%m-%d")
     
+    # 确保chan.py可用
+    if not CHAN_AVAILABLE:
+        raise RuntimeError(f"chan.py不可用: {CHAN_IMPORT_ERROR}")
+    
     # 构建配置
-    chan_config = CChanConfig(config) if CHAN_AVAILABLE else type('_Config', (), {})()
+    chan_config = CChanConfig(config)
     
     try:
-        if CHAN_AVAILABLE:
-            # 加载真实数据
-            chan = CChan(
-                code=code,
-                begin_time=start_date,
-                end_time=end_date,
-                data_src="BAO_STOCK",
-                lv_list=[level],
-                config=chan_config
-            )
-            return _convert_to_visualization_data(chan, level)
-        else:
-            # 使用模拟数据
-            return _get_mock_data()
+        # 加载真实数据
+        chan = CChan(
+            code=baostock_code,  # 使用转换后的代码格式
+            begin_time=start_date,
+            end_time=end_date,
+            data_src="BAO_STOCK",
+            lv_list=[level],
+            config=chan_config
+        )
+        return _convert_to_visualization_data(chan, level)
             
     except Exception as e:
         print(f"数据加载错误: {e}")
-        return _get_mock_data()
+        raise RuntimeError(f"无法获取股票数据，请检查股票代码和网络连接: {e}")
 
 @st.cache_data(ttl=3600)
 def _convert_to_visualization_data(chan, level):
@@ -69,7 +91,7 @@ def _convert_to_visualization_data(chan, level):
 def _extract_kline_data(kline_data):
     """提取K线数据"""
     dates = []
-    open_price, close_price, low, high = [], [], [], []
+    open_price, close_price, low, high, volume = [], [], [], [], []
     
     try:
         for kl in kline_data:
@@ -79,6 +101,7 @@ def _extract_kline_data(kline_data):
                 close_price.append(float(klu.close))
                 low.append(float(klu.low))
                 high.append(float(klu.high))
+                volume.append(float(getattr(klu, 'volume', 0)))
     except:
         # 模拟数据
         import random
@@ -97,6 +120,7 @@ def _extract_kline_data(kline_data):
             close_price.append(round(close_p, 2))
             low.append(round(low_p, 2))
             high.append(round(high_p, 2))
+            volume.append(random.randint(1000, 10000))
             base_price = close_p
     
     return {
@@ -104,7 +128,8 @@ def _extract_kline_data(kline_data):
         "open": open_price,
         "close": close_price,
         "low": low,
-        "high": high
+        "high": high,
+        "volume": volume
     }
 
 @st.cache_data(ttl=3600)
@@ -113,9 +138,10 @@ def _extract_bi_data(bi_list):
     bi_coords = []
     try:
         for bi in bi_list:
+            # 修复：使用begin_klc和end_klc的idx
             bi_coords.append({
-                "x": [int(bi.begin_klu.idx), int(bi.end_klu.idx)],
-                "y": [float(bi.begin_klu.close), float(bi.end_klu.close)],
+                "x": [int(bi.begin_klc.idx), int(bi.end_klc.idx)],
+                "y": [float(bi.begin_klc.close), float(bi.end_klc.close)],
                 "type": str(getattr(bi, 'type', '笔')),
                 "direction": "up" if getattr(bi, 'dir', 1) > 0 else "down"
             })
@@ -133,8 +159,9 @@ def _extract_zs_data(zs_list):
     zones = []
     try:
         for zs in zs_list:
+            # 修复：使用正确的中枢属性
             zones.append({
-                "x": [int(zs.begin_klu.idx), int(zs.end_klu.idx)],
+                "x": [int(zs.begin.idx), int(zs.end.idx)],
                 "y": [float(zs.low), float(zs.high)],
                 "type": str(getattr(zs, 'type', '中枢'))
             })
@@ -151,9 +178,10 @@ def _extract_segment_data(seg_list):
     segments = []
     try:
         for seg in seg_list:
+            # 修复：使用正确的线段属性
             segments.append({
-                "x": [int(seg.begin_klu.idx), int(seg.end_klu.idx)],
-                "y": [float(seg.begin_klu.close), float(seg.end_klu.close)],
+                "x": [int(seg.begin_klc.idx), int(seg.end_klc.idx)],
+                "y": [float(seg.begin_klc.close), float(seg.end_klc.close)],
                 "type": str(getattr(seg, 'type', '线段'))
             })
     except:
@@ -230,10 +258,199 @@ def _get_mock_data():
     }
 
 class StreamlitDataService:
-    """数据服务包装，保持接口兼容"""
-    def __init__(self):
-        pass
+    """Streamlit专用的缠论数据服务"""
     
-    def load_chan_data(self, code: str, level: str, config: Dict, start_date: str = None, end_date: str = None) -> Dict:
-        """调用全局缓存函数"""
-        return load_chan_data(code, level, config, start_date, end_date)
+    def __init__(self):
+        self.chan_available = CHAN_AVAILABLE
+        self.chan_error = CHAN_IMPORT_ERROR
+        if not CHAN_AVAILABLE:
+            print(f"⚠️ chan.py依赖不可用，将使用模拟数据: {CHAN_IMPORT_ERROR}")
+    
+    @st.cache_data(ttl=3600)
+    def load_chan_data(_self, code: str, level: str, config: Dict, start_date: str = None, end_date: str = None) -> Dict:
+        """加载缠论数据并转换为前端格式"""
+        
+        # 参数验证
+        if not code or not level:
+            raise ValueError("参数缺失")
+        
+        # 转换股票代码格式：UI的.SZ/.SH格式 -> BaoStock的sz./sh.格式
+        if code.endswith('.SZ'):
+            baostock_code = f"sz.{code[:-3]}"
+        elif code.endswith('.SH'):
+            baostock_code = f"sh.{code[:-3]}"
+        else:
+            # 如果已经是BaoStock格式，直接使用
+            baostock_code = code
+        
+        # 设置默认日期范围
+        if not start_date:
+            start_date = "2023-01-01"
+        if not end_date:
+            end_date = datetime.now().strftime("%Y-%m-%d")
+        
+        # 确保chan.py可用
+        if not _self.chan_available:
+            raise RuntimeError(f"chan.py不可用: {_self.chan_error}")
+        
+        # 导入枚举类型
+        from Common.CEnum import DATA_SRC, KL_TYPE
+        
+        # 转换级别字符串为KL_TYPE枚举
+        level_mapping = {
+            "K_DAY": KL_TYPE.K_DAY,
+            "K_60M": KL_TYPE.K_60M,
+            "K_30M": KL_TYPE.K_30M,
+            "K_15M": KL_TYPE.K_15M,
+            "K_5M": KL_TYPE.K_5M,
+            "K_1M": KL_TYPE.K_1M
+        }
+        
+        kl_type = level_mapping.get(level, KL_TYPE.K_DAY)
+        
+        # 构建配置
+        chan_config = CChanConfig(config)
+        
+        try:
+            # 加载真实数据
+            chan = CChan(
+                code=baostock_code,  # 使用转换后的代码格式
+                begin_time=start_date,
+                end_time=end_date,
+                data_src=DATA_SRC.BAO_STOCK,
+                lv_list=[kl_type],
+                config=chan_config
+            )
+            return _self._convert_to_visualization_data(chan, kl_type)
+                
+        except Exception as e:
+            print(f"数据加载错误: {e}")
+            raise RuntimeError(f"无法获取股票数据，请检查股票代码和网络连接: {e}")
+    
+    def _convert_to_visualization_data(self, chan, level):
+        """转换为可视化格式"""
+        try:
+            # 获取对应级别的K线列表
+            kline_list = chan.kl_datas[level]
+            
+            return {
+                "kline": self._extract_kline_data(kline_list),
+                "bi": self._extract_bi_data(kline_list.bi_list),
+                "segment": self._extract_segment_data(kline_list.seg_list),
+                "central_zone": self._extract_zs_data(kline_list.zs_list),
+                "buy_sell_points": self._extract_bsp_data(kline_list.bs_point_lst)
+            }
+        except Exception as e:
+            raise RuntimeError(f"数据转换失败: {e}")
+    
+    def _extract_kline_data(self, kline_list):
+        """提取K线数据"""
+        dates = []
+        open_price, close_price, low, high, volume = [], [], [], [], []
+        
+        # 遍历K线合并单元
+        for kline_combine in kline_list:
+            # 遍历合并单元中的每个K线单元
+            for klu in kline_combine.lst:
+                dates.append(str(klu.time))
+                open_price.append(float(klu.open))
+                close_price.append(float(klu.close))
+                low.append(float(klu.low))
+                high.append(float(klu.high))
+                volume.append(float(getattr(klu, 'volume', 0)))
+        
+        return {
+            "dates": dates,
+            "open": open_price,
+            "close": close_price,
+            "low": low,
+            "high": high,
+            "volume": volume
+        }
+    
+    def _extract_bi_data(self, bi_list):
+        """提取笔数据"""
+        from Common.CEnum import BI_DIR
+        bi_coords = []
+        for bi in bi_list:
+            # 根据笔的方向确定起止点的价格
+            if bi.dir == BI_DIR.UP:
+                # 上升笔：起点用低点，终点用高点
+                start_price = float(bi.begin_klc.low)
+                end_price = float(bi.end_klc.high)
+            else:
+                # 下降笔：起点用高点，终点用低点
+                start_price = float(bi.begin_klc.high)
+                end_price = float(bi.end_klc.low)
+            
+            bi_coords.append({
+                "x": [int(bi.begin_klc.idx), int(bi.end_klc.idx)],
+                "y": [start_price, end_price],
+                "type": str(getattr(bi, 'type', '笔')),
+                "direction": "up" if bi.dir == BI_DIR.UP else "down"
+            })
+        return bi_coords
+    
+    def _extract_zs_data(self, zs_list):
+        """提取中枢数据"""
+        zones = []
+        for zs in zs_list:
+            # ZS对象有begin和end属性，都是CKLine_Unit对象
+            begin_klu = zs.begin
+            end_klu = zs.end
+            
+            zones.append({
+                "x": [int(begin_klu.idx), int(end_klu.idx)],
+                "y": [float(zs.low), float(zs.high)],
+                "type": str(getattr(zs, 'type', '中枢'))
+            })
+        return zones
+    
+    def _extract_segment_data(self, seg_list):
+        """提取线段数据"""
+        from Common.CEnum import BI_DIR
+        segments = []
+        for seg in seg_list:
+            # 线段由笔组成，起始点来自start_bi和end_bi
+            start_bi = seg.start_bi
+            end_bi = seg.end_bi
+            
+            # 线段起点：第一笔的起点价格
+            if start_bi.dir == BI_DIR.UP:
+                start_price = float(start_bi.begin_klc.low)
+            else:
+                start_price = float(start_bi.begin_klc.high)
+            
+            # 线段终点：最后一笔的终点价格
+            if end_bi.dir == BI_DIR.UP:
+                end_price = float(end_bi.end_klc.high)
+            else:
+                end_price = float(end_bi.end_klc.low)
+            
+            segments.append({
+                "x": [int(start_bi.begin_klc.idx), int(end_bi.end_klc.idx)],
+                "y": [start_price, end_price],
+                "type": str(getattr(seg, 'type', '线段'))
+            })
+        return segments
+    
+    def _extract_bsp_data(self, bsp_list):
+        """提取买卖点数据"""
+        bsp_data = []
+        # BSP列表是CBSPointList对象，使用getSortedBspList()方法获取排序后的买卖点列表
+        try:
+            bsp_sorted = bsp_list.getSortedBspList()
+            for bsp in bsp_sorted:
+                # CBS_Point对象有klu属性，这是从bi.get_end_klu()获得的CKLine_Unit对象
+                # klu.idx是K线在整个序列中的索引，klu.close是收盘价
+                bsp_data.append({
+                    "kl_idx": int(bsp.klu.idx),  # K线索引
+                    "price": float(bsp.klu.close),  # K线收盘价
+                    "is_buy": bool(bsp.is_buy),
+                    "type": str(bsp.type2str())
+                })
+        except Exception as e:
+            print(f"BSP提取错误: {e}")
+            # 如果提取失败，返回空列表
+            pass
+        return bsp_data
