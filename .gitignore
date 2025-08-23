@@ -1,0 +1,33 @@
+# Virtual environments
+chan-viz-env/
+env/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Streamlit
+.streamlit/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Package directories
+*.egg-info/
+dist/
+build/
