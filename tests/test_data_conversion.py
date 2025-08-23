@@ -149,7 +149,7 @@ class TestChanDataConversion(unittest.TestCase):
         if len(bi_list) == 0:
             self.skipTest("当前数据没有笔，跳过笔数据转换测试")
         
-        converted_bi = self.data_service._extract_bi_data(bi_list)
+        converted_bi = self.data_service._extract_bi_data(bi_list, self.data_service._build_klu_index_mapping(kline_list))
         
         # 验证基础结构
         self.assertIsInstance(converted_bi, list, "笔数据应为列表")
@@ -209,7 +209,7 @@ class TestChanDataConversion(unittest.TestCase):
         if len(seg_list) == 0:
             self.skipTest("当前数据没有线段，跳过线段数据转换测试")
         
-        converted_seg = self.data_service._extract_segment_data(seg_list)
+        converted_seg = self.data_service._extract_segment_data(seg_list, self.data_service._build_klu_index_mapping(kline_list))
         
         total_klu_count = sum(len(klc.lst) for klc in kline_list)
         
@@ -251,7 +251,7 @@ class TestChanDataConversion(unittest.TestCase):
         if len(zs_list) == 0:
             self.skipTest("当前数据没有中枢，跳过中枢数据转换测试")
         
-        converted_zs = self.data_service._extract_zs_data(zs_list)
+        converted_zs = self.data_service._extract_zs_data(zs_list, self.data_service._build_klu_index_mapping(kline_list))
         
         total_klu_count = sum(len(klc.lst) for klc in kline_list)
         

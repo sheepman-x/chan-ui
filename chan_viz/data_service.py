@@ -333,15 +333,36 @@ class StreamlitDataService:
             # 获取对应级别的K线列表
             kline_list = chan.kl_datas[level]
             
+            # 构建K线单元全局索引映射
+            klu_global_index_map = self._build_klu_index_mapping(kline_list)
+            
             return {
                 "kline": self._extract_kline_data(kline_list),
-                "bi": self._extract_bi_data(kline_list.bi_list),
-                "segment": self._extract_segment_data(kline_list.seg_list),
-                "central_zone": self._extract_zs_data(kline_list.zs_list),
+                "bi": self._extract_bi_data(kline_list.bi_list, klu_global_index_map),
+                "segment": self._extract_segment_data(kline_list.seg_list, klu_global_index_map),
+                "central_zone": self._extract_zs_data(kline_list.zs_list, klu_global_index_map),
                 "buy_sell_points": self._extract_bsp_data(kline_list.bs_point_lst)
             }
         except Exception as e:
             raise RuntimeError(f"数据转换失败: {e}")
+    
+    def _build_klu_index_mapping(self, kline_list):
+        """构建K线单元全局索引映射
+        
+        返回: {klc_idx: (start_klu_idx, end_klu_idx)}
+        """
+        klu_global_index_map = {}
+        total_klu_count = 0
+        
+        for klc_idx, klc in enumerate(kline_list):
+            start_klu_idx = total_klu_count
+            klc_klu_count = len(klc.lst)
+            end_klu_idx = start_klu_idx + klc_klu_count - 1
+            
+            klu_global_index_map[klc_idx] = (start_klu_idx, end_klu_idx)
+            total_klu_count += klc_klu_count
+        
+        return klu_global_index_map
     
     def _extract_kline_data(self, kline_list):
         """提取K线数据"""
@@ -368,69 +389,64 @@ class StreamlitDataService:
             "volume": volume
         }
     
-    def _extract_bi_data(self, bi_list):
-        """提取笔数据"""
-        from Common.CEnum import BI_DIR
+    def _extract_bi_data(self, bi_list, klu_global_index_map):
+        """提取笔数据 - 遵循chan.py官方实现"""
         bi_coords = []
         for bi in bi_list:
-            # 根据笔的方向确定起止点的价格
-            if bi.dir == BI_DIR.UP:
-                # 上升笔：起点用低点，终点用高点
-                start_price = float(bi.begin_klc.low)
-                end_price = float(bi.end_klc.high)
-            else:
-                # 下降笔：起点用高点，终点用低点
-                start_price = float(bi.begin_klc.high)
-                end_price = float(bi.end_klc.low)
+            # 使用chan.py官方方法获取笔的精确坐标和价格
+            begin_klu = bi.get_begin_klu()  # 获取起点的具体K线单元
+            end_klu = bi.get_end_klu()      # 获取终点的具体K线单元
+            begin_val = bi.get_begin_val()  # 获取起点的精确价格
+            end_val = bi.get_end_val()      # 获取终点的精确价格
             
             bi_coords.append({
-                "x": [int(bi.begin_klc.idx), int(bi.end_klc.idx)],
-                "y": [start_price, end_price],
+                "x": [int(begin_klu.idx), int(end_klu.idx)],
+                "y": [float(begin_val), float(end_val)],
                 "type": str(getattr(bi, 'type', '笔')),
-                "direction": "up" if bi.dir == BI_DIR.UP else "down"
+                "direction": "up" if bi.is_up() else "down",
+                "is_sure": bi.is_sure  # 是否为确定的笔
             })
         return bi_coords
     
-    def _extract_zs_data(self, zs_list):
-        """提取中枢数据"""
+    def _extract_zs_data(self, zs_list, klu_global_index_map):
+        """提取中枢数据 - 遵循chan.py官方实现"""
         zones = []
         for zs in zs_list:
-            # ZS对象有begin和end属性，都是CKLine_Unit对象
-            begin_klu = zs.begin
-            end_klu = zs.end
+            # 获取中枢起止的全局K线单元索引
+            begin_klu_range = klu_global_index_map.get(zs.begin.idx)
+            end_klu_range = klu_global_index_map.get(zs.end.idx)
+            
+            if begin_klu_range is None or end_klu_range is None:
+                continue  # 跳过无法映射的中枢
+            
+            # 使用K线单元索引范围 - 中枢覆盖从起始到结束的整个范围
+            begin_klu_idx = begin_klu_range[0]
+            end_klu_idx = end_klu_range[1]
             
             zones.append({
-                "x": [int(begin_klu.idx), int(end_klu.idx)],
+                "x": [begin_klu_idx, end_klu_idx],
                 "y": [float(zs.low), float(zs.high)],
-                "type": str(getattr(zs, 'type', '中枢'))
+                "type": str(getattr(zs, 'type', '中枢')),
+                "is_sure": bool(getattr(zs, 'is_sure', True))  # 添加确定性标识
             })
         return zones
     
-    def _extract_segment_data(self, seg_list):
-        """提取线段数据"""
-        from Common.CEnum import BI_DIR
+    def _extract_segment_data(self, seg_list, klu_global_index_map):
+        """提取线段数据 - 遵循chan.py官方实现"""
         segments = []
         for seg in seg_list:
-            # 线段由笔组成，起始点来自start_bi和end_bi
-            start_bi = seg.start_bi
-            end_bi = seg.end_bi
-            
-            # 线段起点：第一笔的起点价格
-            if start_bi.dir == BI_DIR.UP:
-                start_price = float(start_bi.begin_klc.low)
-            else:
-                start_price = float(start_bi.begin_klc.high)
-            
-            # 线段终点：最后一笔的终点价格
-            if end_bi.dir == BI_DIR.UP:
-                end_price = float(end_bi.end_klc.high)
-            else:
-                end_price = float(end_bi.end_klc.low)
+            # 使用chan.py官方方法获取线段的精确坐标和价格
+            begin_klu = seg.get_begin_klu()  # 获取起点的具体K线单元
+            end_klu = seg.get_end_klu()      # 获取终点的具体K线单元
+            begin_val = seg.get_begin_val()  # 获取起点的精确价格
+            end_val = seg.get_end_val()      # 获取终点的精确价格
             
             segments.append({
-                "x": [int(start_bi.begin_klc.idx), int(end_bi.end_klc.idx)],
-                "y": [start_price, end_price],
-                "type": str(getattr(seg, 'type', '线段'))
+                "x": [int(begin_klu.idx), int(end_klu.idx)],
+                "y": [float(begin_val), float(end_val)],
+                "type": str(getattr(seg, 'type', '线段')),
+                "direction": "up" if seg.dir == 1 else "down",  # 线段方向
+                "is_sure": bool(getattr(seg, 'is_sure', True))  # 是否为确定的线段
             })
         return segments
     
