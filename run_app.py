@@ -5,13 +5,14 @@ import os
 import subprocess
 
 # 检查chan.py子模块是否存在且不为空
-chan_path = os.path.join(os.path.dirname(__file__), 'chan.py')
+current_dir = os.path.dirname(__file__) or os.getcwd()
+chan_path = os.path.join(current_dir, 'chan.py')
 if not os.path.exists(chan_path) or not os.listdir(chan_path):
     st.warning("⚠️ chan.py子模块未初始化，正在下载...")
     try:
         # 初始化并更新子模块
         result = subprocess.run(["git", "submodule", "update", "--init", "--recursive"], 
-                              capture_output=True, text=True, cwd=os.path.dirname(__file__))
+                              capture_output=True, text=True, cwd=current_dir)
         if result.returncode == 0:
             st.success("✅ chan.py子模块下载完成")
         else:
