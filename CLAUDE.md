@@ -1,3 +1,6 @@
+# 命令
+提交代码：需要执行 git add && git commit && git push
+
 # 工作空间
 1. MUST: chan.py 是子模块，只能读取，不能变更里面的代码。参考 chan.py/README.md 来获取最新的功能
 2. MUST: dev_plan.md 是我们的实施计划，严格遵守该计划内容
