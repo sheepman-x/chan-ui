@@ -212,7 +212,7 @@ class PlotlyChartRenderer:
                         y=[bsp['price'] + price_offset],
                         mode='markers',
                         marker=dict(size=marker_size, color=color, symbol=marker_symbol, line=dict(width=2, color='white')),
-                        hovertemplate=f"{label}点 ({bsp_type})<br>价格: %{{y:.2f}}<br>日期: %{{x}}<extra></extra>",
+                        hovertemplate=f"{label}点 ({bsp_type})<br>价格: {bsp['price']:.2f}<br>日期: %{{x}}<extra></extra>",
                         showlegend=False
                     ))
                     

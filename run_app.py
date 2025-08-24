@@ -38,7 +38,7 @@ def main():
         col1, col2 = st.columns(2)
         with col1:
             market_options = {
-                "A股": {"prefix": "", "suffix": ".SZ", "example": "002415"},
+                "A股": {"prefix": "", "suffix": ".SZ", "example": "000002"},
                 # "港股": {"prefix": "HK.", "suffix": "", "example": "00700"}, 
                 # "美股": {"prefix": "", "suffix": "", "example": "AAPL"}
             }
@@ -92,7 +92,8 @@ def main():
                                          help=f"分钟级别数据限制在最近{max_days_ago}天内")
             else:
                 # 日线级别可以选择更长时间范围
-                default_start = datetime.now() - timedelta(days=365)
+                max_days_ago = 600
+                default_start = datetime.now() - timedelta(days=max_days_ago)
                 start_date = st.date_input("开始日期", 
                                          value=default_start,
                                          max_value=datetime.now())
@@ -128,14 +129,8 @@ def main():
         st.markdown("---")
         
         # 控制按钮
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🔄 更新图表", type="primary", use_container_width=True):
-                st.session_state.refresh_chart = True
-        with col2:
-            if st.button("🧹 清空缓存", use_container_width=True):
-                st.cache_data.clear()
-                st.success("缓存已清空!")
+        if st.button("🔄 更新图表", type="primary", use_container_width=True):
+            st.session_state.refresh_chart = True
     
     # 主要内容区域
     st.title("📈 缠论图表可视化")
@@ -237,19 +232,6 @@ def main():
                 st.json(data)
         else:
             st.info("📊 生成图表后可查看数据统计信息")
-    # 底部信息
-    st.divider()
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric("📡 支持级别", "6个", "完整")
-    with col2:
-        st.metric("⚙️ 参数选项", "6个", "灵活")
-    with col3:
-        st.metric("🔍 元素类型", "4种", "全面")
-    with col4:
-        st.metric("💾 缓存时间", "1小时", "高效")
 
 if __name__ == "__main__":
     main()

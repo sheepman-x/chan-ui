@@ -46,7 +46,7 @@ class TestChanDataConversion(unittest.TestCase):
         cls.data_service = StreamlitDataService()
         
         # 测试股票代码和参数
-        cls.test_code = "sz.000001"  # 平安银行
+        cls.test_code = "sz.000858"  # 五粮液（有更多买卖点）
         cls.test_level = KL_TYPE.K_DAY
         cls.test_config = {
             "bi_strict": True,
