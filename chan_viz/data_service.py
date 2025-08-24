@@ -15,7 +15,7 @@ try:
         CHAN_IMPORT_ERROR = f"Python版本过低，需要3.11+，当前为{sys.version_info.major}.{sys.version_info.minor}"
     else:
         chan_path = os.path.join(os.path.dirname(__file__), '..', 'chan.py')
-        sys.path.append(chan_path)
+        sys.path.insert(0, chan_path)  # 插入到开头确保优先加载
         from Chan import CChan
         from ChanConfig import CChanConfig
         CHAN_AVAILABLE = True
