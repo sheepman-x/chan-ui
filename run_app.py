@@ -5,24 +5,6 @@ import os
 
 # 动态添加项目路径
 chan_path = os.path.join(os.path.dirname(__file__), 'chan.py')
-
-# 检查chan.py目录是否存在且不为空
-print(f"🔍 检查chan.py路径: {chan_path}")
-print(f"🔍 路径是否存在: {os.path.exists(chan_path)}")
-
-chan_dir_empty = False
-if os.path.exists(chan_path) and os.path.isdir(chan_path):
-    dir_contents = os.listdir(chan_path)
-    print(f"🔍 目录内容: {dir_contents}")
-    chan_dir_empty = len(dir_contents) == 0
-    
-    if chan_dir_empty:
-        print("⚠️ chan.py目录为空！Streamlit Cloud未拉取submodule")
-        print("💡 应用将使用模拟数据模式运行")
-else:
-    print("❌ chan.py目录不存在！")
-    chan_dir_empty = True
-
 sys.path.insert(0, chan_path)  # 插入到路径开头确保优先加载
 
 # 导入自定义模块
