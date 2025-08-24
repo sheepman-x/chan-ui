@@ -196,7 +196,7 @@ def _extract_bsp_data(bsp_list):
         for bsp in bsp_list:
             bsp_data.append({
                 "kl_idx": int(bsp.klu.idx),
-                "price": float(bsp.klu.close),
+                "price": float(bsp.bi.get_end_val()),
                 "is_buy": bool(bsp.is_buy),
                 "type": str(getattr(bsp, 'type', '买卖点'))
             })
@@ -412,16 +412,10 @@ class StreamlitDataService:
         """提取中枢数据 - 遵循chan.py官方实现"""
         zones = []
         for zs in zs_list:
-            # 获取中枢起止的全局K线单元索引
-            begin_klu_range = klu_global_index_map.get(zs.begin.idx)
-            end_klu_range = klu_global_index_map.get(zs.end.idx)
-            
-            if begin_klu_range is None or end_klu_range is None:
-                continue  # 跳过无法映射的中枢
-            
-            # 使用K线单元索引范围 - 中枢覆盖从起始到结束的整个范围
-            begin_klu_idx = begin_klu_range[0]
-            end_klu_idx = end_klu_range[1]
+            # zs.begin 和 zs.end 已经是 CKLine_Unit 对象，直接使用它们的 idx
+            # 这些 idx 已经是全局的 KLine Unit 索引，不需要再映射
+            begin_klu_idx = int(zs.begin.idx)
+            end_klu_idx = int(zs.end.idx)
             
             zones.append({
                 "x": [begin_klu_idx, end_klu_idx],
@@ -458,10 +452,10 @@ class StreamlitDataService:
             bsp_sorted = bsp_list.getSortedBspList()
             for bsp in bsp_sorted:
                 # CBS_Point对象有klu属性，这是从bi.get_end_klu()获得的CKLine_Unit对象
-                # klu.idx是K线在整个序列中的索引，klu.close是收盘价
+                # klu.idx是K线在整个序列中的索引，price是笔的结束价格
                 bsp_data.append({
                     "kl_idx": int(bsp.klu.idx),  # K线索引
-                    "price": float(bsp.klu.close),  # K线收盘价
+                    "price": float(bsp.bi.get_end_val()),  # 笔的结束价格
                     "is_buy": bool(bsp.is_buy),
                     "type": str(bsp.type2str())
                 })

@@ -54,13 +54,20 @@ class PlotlyChartRenderer:
                 x_dates = [dates[idx] for idx in x_indices if idx < len(dates)]
                 
                 if len(x_dates) == len(bi['y']):  # 确保坐标对应
+                    # 根据is_sure决定线型：确定的笔用实线，不确定的用虚线
+                    is_sure = bi.get('is_sure', True)
+                    line_style = dict(color=self.colors['bi'], width=1.5)
+                    if not is_sure:
+                        line_style['dash'] = 'dash'
+                    
                     fig.add_trace(go.Scatter(
                         x=x_dates,
                         y=bi['y'],
                         mode='lines+markers',
-                        line=dict(color=self.colors['bi'], width=1.5),
+                        line=line_style,
                         marker=dict(size=4),
-                        hovertemplate="笔: %{y:.2f}<br>日期: %{x}<extra></extra>",
+                        hovertemplate="笔: %{y:.2f}<br>日期: %{x}<br>状态: %{customdata}<extra></extra>",
+                        customdata=["确定" if is_sure else "不确定"],
                         showlegend=False  # 不在图例中显示具体笔
                     ))
         
@@ -82,12 +89,19 @@ class PlotlyChartRenderer:
                 x_dates = [dates[idx] for idx in x_indices if idx < len(dates)]
                 
                 if len(x_dates) == len(seg['y']):  # 确保坐标对应
+                    # 根据is_sure决定线型：确定的线段用实线，不确定的用虚线
+                    is_sure = seg.get('is_sure', True)
+                    line_style = dict(color=self.colors['seg'], width=2.5)
+                    if not is_sure:
+                        line_style['dash'] = 'dash'
+                    
                     fig.add_trace(go.Scatter(
                         x=x_dates,
                         y=seg['y'],
                         mode='lines',
-                        line=dict(color=self.colors['seg'], width=2.5),
-                        hovertemplate="线段: %{y:.2f}<br>日期: %{x}<extra></extra>",
+                        line=line_style,
+                        hovertemplate="线段: %{y:.2f}<br>日期: %{x}<br>状态: %{customdata}<extra></extra>",
+                        customdata=["确定" if is_sure else "不确定"],
                         showlegend=False  # 不在图例中显示具体线段
                     ))
         
@@ -112,14 +126,22 @@ class PlotlyChartRenderer:
                     x_start, x_end = dates[x_indices[0]], dates[x_indices[1]]
                     y_low, y_high = zs['y'][0], zs['y'][1]
                     
+                    # 根据is_sure决定线型：确定的中枢用点线，不确定的用虚线
+                    is_sure = zs.get('is_sure', True)
+                    line_style = dict(color=self.colors['zs'], width=1)
+                    if is_sure:
+                        line_style['dash'] = 'dot'  # 确定的中枢用点线
+                    else:
+                        line_style['dash'] = 'dash'  # 不确定的中枢用虚线
+                    
                     # 创建矩形区域
                     fig.add_trace(go.Scatter(
                         x=[x_start, x_end, x_end, x_start, x_start],
                         y=[y_low, y_low, y_high, y_high, y_low],
                         fill='toself',
                         fillcolor='rgba(69, 183, 209, 0.25)',
-                        line=dict(color=self.colors['zs'], width=1, dash='dot'),
-                        hovertemplate=f"中枢 {i+1}<br>范围: {y_low:.2f} - {y_high:.2f}<extra></extra>",
+                        line=line_style,
+                        hovertemplate=f"中枢 {i+1}<br>范围: {y_low:.2f} - {y_high:.2f}<br>状态: {'确定' if is_sure else '不确定'}<extra></extra>",
                         showlegend=False  # 不在图例中显示具体中枢
                     ))
         
@@ -143,6 +165,29 @@ class PlotlyChartRenderer:
                 showlegend=True
             ))
             
+            # 添加买卖点类型图例
+            fig.add_trace(go.Scatter(
+                x=[None], y=[None],
+                mode='text',
+                name='一类买卖点',
+                textfont=dict(size=10, color='black'),
+                showlegend=True
+            ))
+            fig.add_trace(go.Scatter(
+                x=[None], y=[None],
+                mode='text', 
+                name='二类买卖点',
+                textfont=dict(size=10, color='black'),
+                showlegend=True
+            ))
+            fig.add_trace(go.Scatter(
+                x=[None], y=[None],
+                mode='text',
+                name='三类买卖点',
+                textfont=dict(size=10, color='black'),
+                showlegend=True
+            ))
+            
             # 添加具体的买卖点数据
             for i, bsp in enumerate(data['buy_sell_points']):
                 # 将索引映射为日期
@@ -153,13 +198,34 @@ class PlotlyChartRenderer:
                     symbol = 'triangle-up' if bsp['is_buy'] else 'triangle-down'
                     label = '买' if bsp['is_buy'] else '卖'
                     
+                    # 使用chan.py风格的买卖点显示
+                    bsp_type = bsp.get('type', '')
+                    marker_size, marker_symbol = self._get_bsp_marker_style(bsp_type, bsp['is_buy'])
+                    chan_style_label = self._get_bsp_chan_style_label(bsp_type, bsp['is_buy'])
+                    
+                    # 计算买卖点偏移位置，远离K线
+                    price_offset = self._calculate_price_offset(data['kline'], bsp['price'], bsp['is_buy'])
+                    
+                    # 添加买卖点标记
                     fig.add_trace(go.Scatter(
                         x=[x_date],
-                        y=[bsp['price']],
+                        y=[bsp['price'] + price_offset],
                         mode='markers',
-                        marker=dict(size=12, color=color, symbol=symbol, line=dict(width=2, color='white')),
-                        hovertemplate=f"{label}点<br>价格: %{{y:.2f}}<br>日期: %{{x}}<extra></extra>",
-                        showlegend=False  # 不在图例中显示具体买卖点
+                        marker=dict(size=marker_size, color=color, symbol=marker_symbol, line=dict(width=2, color='white')),
+                        hovertemplate=f"{label}点 ({bsp_type})<br>价格: %{{y:.2f}}<br>日期: %{{x}}<extra></extra>",
+                        showlegend=False
+                    ))
+                    
+                    # 添加买卖点文本标签（放在标记右侧）
+                    # 使用textposition控制位置，Plotly会自动处理偏移
+                    fig.add_trace(go.Scatter(
+                        x=[x_date],
+                        y=[bsp['price'] + price_offset],
+                        mode='text',
+                        text=[chan_style_label],
+                        textposition='middle right',  # 文本放在标记右侧
+                        textfont=dict(size=13, color='black', family='Arial Bold'),  # 黑色文字，更大字体
+                        showlegend=False
                     ))
         
         # 简洁布局 - 去掉多余控件，只保留主图和图例
@@ -200,4 +266,40 @@ class PlotlyChartRenderer:
         )
         
         return fig
+    
+    def _get_bsp_chan_style_label(self, bsp_type, is_buy):
+        """获取chan.py风格的买卖点标签"""
+        if not bsp_type:
+            return "b?" if is_buy else "s?"
+        
+        # 直接使用chan.py的格式: b1, s2, b2,3b 等
+        prefix = "b" if is_buy else "s"
+        return f"  {prefix}{bsp_type}"
+    
+    def _get_bsp_marker_style(self, bsp_type, is_buy):
+        """根据买卖点类型获取chan.py风格的标记样式"""
+        # chan.py使用统一的三角形标记，通过文本区分类型
+        # 这里我们保持一致的三角形样式，通过大小稍微区分
+        if '1' in bsp_type:
+            return 14, 'triangle-up' if is_buy else 'triangle-down'  # 一类买卖点稍大
+        elif '2' in bsp_type:
+            return 12, 'triangle-up' if is_buy else 'triangle-down'  # 二类买卖点标准
+        elif '3' in bsp_type:
+            return 10, 'triangle-up' if is_buy else 'triangle-down'  # 三类买卖点稍小
+        else:
+            return 12, 'triangle-up' if is_buy else 'triangle-down'  # 默认
+    
+    def _calculate_price_offset(self, kline_data, price, is_buy):
+        """计算买卖点价格偏移量，使其远离K线"""
+        # 计算价格范围
+        min_price = min(kline_data['low'])
+        max_price = max(kline_data['high'])
+        price_range = max_price - min_price
+        
+        # 计算偏移量（价格范围的5%）
+        offset_percentage = 0.05
+        offset = price_range * offset_percentage
+        
+        # 买点向下偏移，卖点向上偏移（远离K线主体）
+        return -offset if is_buy else offset
     
