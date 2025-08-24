@@ -5,6 +5,17 @@ import os
 
 # 动态添加项目路径
 chan_path = os.path.join(os.path.dirname(__file__), 'chan.py')
+
+# 调试：检查chan.py目录是否存在
+print(f"🔍 检查chan.py路径: {chan_path}")
+print(f"🔍 路径是否存在: {os.path.exists(chan_path)}")
+if os.path.exists(chan_path):
+    print(f"🔍 路径是目录: {os.path.isdir(chan_path)}")
+    if os.path.isdir(chan_path):
+        print(f"🔍 目录内容: {os.listdir(chan_path)[:10]}")  # 显示前10个文件
+else:
+    print("❌ chan.py目录不存在！可能是submodule未拉取")
+
 sys.path.insert(0, chan_path)  # 插入到路径开头确保优先加载
 
 # 导入自定义模块
