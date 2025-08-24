@@ -5,7 +5,7 @@ import os
 
 # 动态添加项目路径
 chan_path = os.path.join(os.path.dirname(__file__), 'chan.py')
-sys.path.append(chan_path)
+sys.path.insert(0, chan_path)  # 插入到路径开头确保优先加载
 
 # 导入自定义模块
 from chan_viz.config_compiler import StreamlitConfig
