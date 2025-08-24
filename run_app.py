@@ -2,9 +2,26 @@ import streamlit as st
 import sys
 from datetime import datetime, timedelta
 import os
+import subprocess
+
+# 检查chan.py子模块是否存在且不为空
+chan_path = os.path.join(os.path.dirname(__file__), 'chan.py')
+if not os.path.exists(chan_path) or not os.listdir(chan_path):
+    st.warning("⚠️ chan.py子模块未初始化，正在下载...")
+    try:
+        # 初始化并更新子模块
+        result = subprocess.run(["git", "submodule", "update", "--init", "--recursive"], 
+                              capture_output=True, text=True, cwd=os.path.dirname(__file__))
+        if result.returncode == 0:
+            st.success("✅ chan.py子模块下载完成")
+        else:
+            st.error(f"❌ 子模块下载失败: {result.stderr}")
+            st.stop()
+    except Exception as e:
+        st.error(f"❌ 子模块初始化异常: {str(e)}")
+        st.stop()
 
 # 动态添加项目路径
-chan_path = os.path.join(os.path.dirname(__file__), 'chan.py')
 sys.path.insert(0, chan_path)  # 插入到路径开头确保优先加载
 
 # 导入自定义模块
