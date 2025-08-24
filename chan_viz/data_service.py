@@ -16,10 +16,22 @@ try:
     else:
         chan_path = os.path.join(os.path.dirname(__file__), '..', 'chan.py')
         sys.path.insert(0, chan_path)  # 插入到开头确保优先加载
-        from Chan import CChan
-        from ChanConfig import CChanConfig
-        CHAN_AVAILABLE = True
-        CHAN_IMPORT_ERROR = None
+        
+        # 检查chan.py目录是否为空（Streamlit Cloud submodule问题）
+        if os.path.exists(chan_path) and os.path.isdir(chan_path):
+            dir_contents = os.listdir(chan_path)
+            if len(dir_contents) == 0:
+                CHAN_AVAILABLE = False
+                CHAN_IMPORT_ERROR = "chan.py目录为空，Streamlit Cloud未拉取submodule"
+                print("⚠️ chan.py目录为空，使用模拟数据模式")
+            else:
+                from Chan import CChan
+                from ChanConfig import CChanConfig
+                CHAN_AVAILABLE = True
+                CHAN_IMPORT_ERROR = None
+        else:
+            CHAN_AVAILABLE = False
+            CHAN_IMPORT_ERROR = f"chan.py路径不存在: {chan_path}"
         
 except Exception as e:
     CHAN_AVAILABLE = False
@@ -289,9 +301,10 @@ class StreamlitDataService:
         if not end_date:
             end_date = datetime.now().strftime("%Y-%m-%d")
         
-        # 确保chan.py可用
+        # 如果chan.py不可用，返回模拟数据
         if not _self.chan_available:
-            raise RuntimeError(f"chan.py不可用: {_self.chan_error}")
+            print(f"📊 使用模拟数据（chan.py不可用: {_self.chan_error}）")
+            return _get_mock_data()
         
         # 导入枚举类型
         from Common.CEnum import DATA_SRC, KL_TYPE
