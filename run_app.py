@@ -52,34 +52,52 @@ def main():
         st.markdown("---")
         
         # 基础信息
-        st.subheader("📊 股票信息")
+        st.subheader("📊 资产信息")
         col1, col2 = st.columns(2)
         with col1:
             market_options = {
-                "A股": {"prefix": "", "suffix": ".SZ", "example": "000002"},
-                # "港股": {"prefix": "HK.", "suffix": "", "example": "00700"}, 
-                # "美股": {"prefix": "", "suffix": "", "example": "AAPL"}
+                "A股": {"prefix": "", "suffix": ".SZ", "example": "000002", "type": "stock"},
+                "加密货币": {"prefix": "", "suffix": "", "example": "BTC/USDT", "type": "crypto"}
+                # "港股": {"prefix": "HK.", "suffix": "", "example": "00700", "type": "stock"}, 
+                # "美股": {"prefix": "", "suffix": "", "example": "AAPL", "type": "stock"}
             }
-            selected_market = st.selectbox("股票市场", 
+            selected_market = st.selectbox("资产类型", 
                                          options=list(market_options.keys()),
-                                         help="选择股票所属市场（目前仅支持A股）")
+                                         help="选择资产类型")
         with col2:
             market_config = market_options[selected_market]
-            code_input = st.text_input("股票代码", 
-                                     value=market_config["example"],
-                                     help=f"输入{selected_market}代码，例如：{market_config['example']}")
             
-        # 根据市场自动格式化股票代码
-        if selected_market == "A股":
-            if code_input.startswith("00") or code_input.startswith("30"):
-                code = f"{code_input}.SZ"  # 深交所
-            elif code_input.startswith("60") or code_input.startswith("68"):
-                code = f"{code_input}.SH"  # 上交所
+            if market_config["type"] == "crypto":
+                # 加密货币选择
+                crypto_options = ["BTC/USDT", "ETH/USDT", "BTC/USD", "ETH/USD", "自定义"]
+                selected_crypto = st.selectbox("加密货币", 
+                                              options=crypto_options,
+                                              help="选择加密货币交易对")
+                
+                if selected_crypto == "自定义":
+                    code_input = st.text_input("自定义交易对", 
+                                             value="BTC/USDT",
+                                             help="输入加密货币交易对，例如：BTC/USDT")
+                    code = code_input
+                else:
+                    code = selected_crypto
             else:
-                code = f"{code_input}.SZ"  # 默认深交所
-        else:
-            # 其他市场的格式化逻辑（预留）
-            code = f"{market_config['prefix']}{code_input}{market_config['suffix']}"
+                # 股票代码输入
+                code_input = st.text_input("股票代码", 
+                                         value=market_config["example"],
+                                         help=f"输入{selected_market}代码，例如：{market_config['example']}")
+                
+                # 根据市场自动格式化股票代码
+                if selected_market == "A股":
+                    if code_input.startswith("00") or code_input.startswith("30"):
+                        code = f"{code_input}.SZ"  # 深交所
+                    elif code_input.startswith("60") or code_input.startswith("68"):
+                        code = f"{code_input}.SH"  # 上交所
+                    else:
+                        code = f"{code_input}.SZ"  # 默认深交所
+                else:
+                    # 其他市场的格式化逻辑（预留）
+                    code = f"{market_config['prefix']}{code_input}{market_config['suffix']}"
         
         # 时间级别选择
         level_options = config_compiler.get_available_levels()
