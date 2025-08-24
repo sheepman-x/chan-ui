@@ -17,8 +17,17 @@ st.markdown("### 第一条K线，第一次缠论可视化")
 with st.sidebar:
     st.header("参数配置🔧")
     
-    # 股票代码输入
-    code = st.text_input("股票代码", value="HK.00700")
+    # 资产代码选择
+    asset_type = st.radio("资产类型", ["股票", "加密货币"], horizontal=True)
+    
+    if asset_type == "股票":
+        # 股票代码输入
+        code = st.text_input("股票代码", value="HK.00700", 
+                           help="支持格式: 600036.SH, 000001.SZ, HK.00700")
+    else:
+        # 加密货币选择
+        crypto_options = ["BTC/USDT", "ETH/USDT", "BTC/USD", "ETH/USD"]
+        code = st.selectbox("加密货币", options=crypto_options)
     
     # 时间级别选择
     level_options = ["K_1M", "K_5M", "K_15M", "K_30M", "K_60M", "K_DAY"]

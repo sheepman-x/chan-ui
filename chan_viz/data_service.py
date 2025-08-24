@@ -274,14 +274,26 @@ class StreamlitDataService:
         if not code or not level:
             raise ValueError("参数缺失")
         
-        # 转换股票代码格式：UI的.SZ/.SH格式 -> BaoStock的sz./sh.格式
+        # 转换股票代码格式：处理股票和加密货币
+        # 股票代码格式转换：UI的.SZ/.SH格式 -> BaoStock的sz./sh.格式
         if code.endswith('.SZ'):
             baostock_code = f"sz.{code[:-3]}"
+            data_source = "BAO_STOCK"
         elif code.endswith('.SH'):
             baostock_code = f"sh.{code[:-3]}"
+            data_source = "BAO_STOCK"
+        # 加密货币代码识别
+        elif code.upper() in ['BTC/USDT', 'ETH/USDT', 'BTC/USD', 'ETH/USD']:
+            baostock_code = code  # 直接使用原代码
+            data_source = "CCXT"
+        elif code.upper() in ['BTC', 'ETH']:
+            # 自动补充交易对格式
+            baostock_code = f"{code.upper()}/USDT"
+            data_source = "CCXT"
         else:
-            # 如果已经是BaoStock格式，直接使用
+            # 默认使用BaoStock格式
             baostock_code = code
+            data_source = "BAO_STOCK"
         
         # 设置默认日期范围
         if not start_date:
@@ -317,7 +329,7 @@ class StreamlitDataService:
                 code=baostock_code,  # 使用转换后的代码格式
                 begin_time=start_date,
                 end_time=end_date,
-                data_src=DATA_SRC.BAO_STOCK,
+                data_src=DATA_SRC[data_source],
                 lv_list=[kl_type],
                 config=chan_config
             )
