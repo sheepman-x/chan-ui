@@ -324,6 +324,10 @@ class StreamlitDataService:
         chan_config = CChanConfig(config)
         
         try:
+            # 记录详细信息用于调试
+            print(f"加载数据: code={baostock_code}, level={kl_type}, source={data_source}")
+            print(f"时间范围: {start_date} to {end_date}")
+            
             # 加载真实数据
             chan = CChan(
                 code=baostock_code,  # 使用转换后的代码格式
